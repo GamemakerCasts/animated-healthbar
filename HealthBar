@@ -1,0 +1,243 @@
+function HealthBar(_x, _y, _w, _h, _max_hp) constructor
+{
+    static TextType = {
+        NONE: 0,
+        PERCENT: 1,
+        FRACTION: 2
+    };
+    static Alignment = {
+        LEFT: 0,
+        RIGHT: 1
+    };
+    
+    // Position & Size
+    __x = _x;
+    __y = _y;
+    __w = _w;
+    __h = _h;
+
+    // Health tracking
+    max_hp = _max_hp;
+    hp_target = _max_hp;
+    hp_visual = _max_hp;
+    hp_chip = _max_hp;
+
+    // Animation
+    lerp_speed = 0.22; // main fill
+    chip_speed = 0.08; // trailing damage
+    flash_time = 0;
+    flash_max = 10;
+    shake_timer = 0;
+    shake_amt = 2;
+    
+    // Healing FX
+    heal_pulse_time = 0; // frames left for heal glow
+    heal_pulse_max = 12; // duration
+    heal_gain_time = 10; // frames left to show gain segment stripes
+    heal_gain_max = 30;
+    heal_start_pct = 0; // where the heal segment starts (percent)
+    
+    text_mode = TextType.NONE;
+    text_align = Alignment.RIGHT;
+    text_pad = 8; // pixels from bar edge
+    text_color = c_white; // label color
+    text_precision = 0; // decimals for percent
+    text_font = -1; // -1 = use current draw font
+
+    // Setters helpers
+    setTextMode = function(_mode) {
+        text_mode  = _mode;
+    };
+    
+    setTextAlign= function(_align)
+    {
+        text_align = _align;
+    };
+    
+    setTextPad  = function(_padding)
+    {
+        text_pad   = _padding;
+    };
+    
+    setTextFont = function(_font)
+    {
+        text_font  = _font;
+    };
+    
+    setTextColor= function(_color)
+    {
+        text_color = _color;
+    };
+    
+    setTextPrecision = function(_precision)
+    {
+        text_precision = _precision;
+    };
+
+
+    // Methods
+    set = function(value) {
+        hp_target = clamp(value, 0, max_hp);
+    };
+
+    damage = function(amount) {
+        set(hp_target - amount);
+        flash_time = flash_max;
+        shake_timer = 6;
+    };
+
+    heal = function(amount) {
+        var prev_pct = hp_visual / max_hp; // start where bar currently is
+        set(hp_target + amount);
+
+        heal_start_pct = prev_pct;
+        heal_pulse_time = heal_pulse_max;
+        heal_gain_time = heal_gain_max;
+    };
+
+    update = function() {
+        // Smooth bar toward target (works for both damage + heal)
+        var old_visual = hp_visual;
+        hp_visual = lerp(hp_visual, hp_target, lerp_speed);
+
+        // Chip trail only if taking damage
+        if (hp_chip > hp_visual) {
+            hp_chip = lerp(hp_chip, hp_visual, chip_speed);
+        } else {
+            hp_chip = hp_visual;
+        }
+
+        // Timers
+        if (flash_time > 0) {
+            flash_time--;
+        }
+        
+        if (shake_timer > 0) {
+            shake_timer--;
+        }
+        
+        if (heal_pulse_time > 0) {
+            heal_pulse_time--;
+        }
+        
+        if (heal_gain_time > 0) {
+            heal_gain_time--;
+        }
+    };
+
+    draw = function() {
+        var sx = (shake_timer > 0) ? irandom_range(-shake_amt, shake_amt) : 0;
+        var sy = (shake_timer > 0) ? irandom_range(-shake_amt, shake_amt) : 0;
+
+        var pct_target = clamp(hp_target / max_hp, 0, 1);
+        var pct_visual = clamp(hp_visual / max_hp, 0, 1);
+        var pct_chip = clamp(hp_chip   / max_hp, 0, 1);
+
+        var bg_col = make_color_rgb(30,30,35);
+        var chip_col = make_color_rgb(180,40,40);
+        var heal_col = make_color_rgb(40,220,170);
+        var fg_col = merge_color(c_red, c_lime, pct_target);
+
+        // Background
+        draw_set_color(bg_col);
+        draw_rectangle(__x + sx, __y + sy, __x + sx + __w, __y + sy + __h, false);
+
+        // Damage chip
+        draw_set_color(chip_col);
+        draw_rectangle(__x + sx, __y + sy,
+                       __x + sx + __w * pct_chip, __y + sy + __h, false);
+
+        // Heal gain segment (drawn while healing)
+        if (heal_gain_time > 0 && pct_visual > heal_start_pct) {
+            var x0 = __x + sx + __w * heal_start_pct;
+            var x1 = __x + sx + __w * pct_visual;
+
+            draw_set_color(heal_col);
+            draw_rectangle(x0, __y + sy, x1, __y + sy + __h, false);
+
+            // Optional fade
+            draw_set_alpha(heal_gain_time / heal_gain_max * 0.6);
+            var stripe_w = 6;
+            for (var i = floor(x0); i < x1; i += stripe_w * 2) {
+                draw_rectangle(i, __y + sy, i + stripe_w, __y + sy + __h, false);
+            }
+            draw_set_alpha(1);
+        }
+
+        // Main fill
+        draw_set_color(fg_col);
+        draw_rectangle(__x + sx, __y + sy,
+                       __x + sx + __w * pct_target, __y + sy + __h, false);
+
+        // Heal pulse glow
+        if (heal_pulse_time > 0) {
+            var t = heal_pulse_time / heal_pulse_max;
+            draw_set_alpha(t * 0.6);
+            draw_set_color(heal_col);
+            draw_rectangle(__x + sx - 2, __y + sy - 2,
+                           __x + sx + __w + 2, __y + sy + __h + 2, false);
+            draw_set_alpha(1);
+        }
+
+        // Damage flash
+        if (flash_time > 0) {
+            draw_set_alpha(flash_time / flash_max);
+            draw_set_color(c_white);
+            draw_rectangle(__x + sx, __y + sy,
+                           __x + sx + __w, __y + sy + __h, false);
+            draw_set_alpha(1);
+        }
+
+        // Border
+        draw_set_color(c_black);
+        draw_rectangle(__x + sx, __y + sy, __x + sx + __w, __y + sy + __h, true);
+        
+        // --- Text label beside the bar ---
+        if (text_mode != TextType.NONE) {
+            // Build the label
+            var label = "";
+            switch (text_mode) {
+                case TextType.PERCENT:
+                    var pct = clamp(hp_target / max_hp, 0, 1) * 100;
+                    // round to text_precision decimals
+                    label = string_format(pct, 0, text_precision) + "%";
+                break;
+                case TextType.FRACTION:
+                    // Use ceil to avoid showing 99.999… due to lerp; show target (true hp)
+                    label = string(ceil(hp_target)) + " / " + string(max_hp);
+                break;
+            }
+
+            // Choose font (optional)
+            var old_font = draw_get_font();
+            if (text_font != -1) {
+                draw_set_font(text_font);
+            }
+
+            // Measure + position
+            var tw = string_width(label);
+            var th = string_height(label);
+
+            var base_x = __x + sx;
+            var base_y = __y + sy;
+
+            var tx, ty;
+            if (text_align == Alignment.RIGHT) {
+                tx = base_x + __w + text_pad;
+            } else { // LEFT
+                tx = base_x - text_pad - tw;
+            }
+            
+            ty = base_y + (__h - th) * 0.5; // vertically center to bar
+
+            // Draw
+            draw_set_color(text_color);
+            draw_text(tx, ty, label);
+
+            // Restore font if changed
+            if (text_font != -1) {
+                draw_set_font(old_font);
+            }
+        }
+    };
+}
