@@ -1,0 +1,85 @@
+# HealthBar (GameMaker Class)
+
+A customizable and efficient health bar class for GameMaker.  
+It supports **damage/heal animations, chip trails, flashes, shake, heal glow, and text labels**, and uses a **surface caching system** so it only re-renders when “dirty” (when the visuals actually change).
+
+---
+
+## Features
+- Smooth lerped health value (`hp_visual`) and trailing chip effect (`hp_chip`)
+- Healing effects:
+  - Heal pulse glow
+  - Temporary striped “gain” segment
+- Damage effects:
+  - Flash overlay
+  - Screen shake
+- Configurable text label:
+  - Modes: None, Percent, Fraction
+  - Alignment: Left / Right
+  - Padding, font, color, precision
+- **Surface caching**  
+  - Bar is drawn into a surface once per change  
+  - Cheap `draw_surface` call when unchanged  
+  - Shake is applied at draw time, so it doesn’t force re-renders
+
+---
+
+## Constructor
+
+```
+hb = new HealthBar(x, y, width, height, max_hp);
+```
+
+## API
+### Core
+```
+hb.set(value);       // Set HP target
+hb.damage(amount);   // Subtract HP and trigger damage FX
+hb.heal(amount);     // Add HP and trigger healing FX
+hb.update();         // Call each step
+hb.draw();           // Call each draw
+hb.destroy();        // Free surface (call on cleanup)
+```
+
+### Text Options
+```
+hb.setTextMode(mode);        // NONE, PERCENT, FRACTION
+hb.setTextAlign(align);      // LEFT, RIGHT
+hb.setTextPad(pixels);       // Padding between bar and text
+hb.setTextFont(font_id);     // -1 = current font
+hb.setTextColor(color);      // Text color
+hb.setTextPrecision(dec);    // Decimal places for percent mode
+```
+
+### Position & Sizing
+```
+hb.setPos(x, y);
+hb.setSize(width, height);
+```
+
+## Example Usage
+```
+// Create event
+hb = new HealthBar(32, 32, 200, 20, 100);
+hb.setTextMode(HealthBar.TextType.FRACTION);
+hb.setTextAlign(HealthBar.Alignment.RIGHT);
+hb.setTextColor(c_white);
+
+// Step event
+hb.update();
+if (keyboard_check_pressed(vk_space)) {
+    hb.damage(10);
+}
+if (keyboard_check_pressed(ord("H"))) {
+    hb.heal(5);
+}
+
+// Draw event
+hb.draw();
+```
+
+#### Surface Notes
+
+The class internally manages a surface (__surf).
+Surfaces are recreated if destroyed (e.g. window resize, device lost).
+Call hb.destroy() when you no longer need the bar to free the surface.
